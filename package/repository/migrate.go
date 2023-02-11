@@ -1,43 +1,49 @@
 package repository
 
 import (
+	"database/sql"
 	"fmt"
-	"strings"
+	"users_service/config"
 	"users_service/util/logrus_log"
 
-	"users_service/config"
-
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database"          //database is needed for migration
-	_ "github.com/golang-migrate/migrate/v4/database/postgres" //postgres is used for database
-	_ "github.com/golang-migrate/migrate/v4/source/file"       //file is needed for migration url
+	migrate "github.com/rubenv/sql-migrate"
 )
 
-func migrateInit() string {
-	var conf = config.Get()
+func psqlInitURL(cfg *config.Config) string {
 
 	// URL for Migration
 	url := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		conf.PostgresUser,
-		conf.PostgresPassword,
-		conf.PostgresHost,
-		conf.PostgresPort,
-		conf.PostgresDatabase,
+		cfg.PostgresUser,
+		cfg.PostgresPassword,
+		cfg.PostgresHost,
+		cfg.PostgresPort,
+		cfg.PostgresDatabase,
 	)
 	return url
 }
 
-// MigrateUP ...
-func MigrateUP(logrus *logrus_log.Logger) {
-	url := migrateInit()
-	m, err := migrate.New("file://schema", url)
+func MigratePsql(cfg *config.Config, logrus *logrus_log.Logger, up bool) error {
+
+	// OR: Read migrations from a folder:
+	migrations := &migrate.FileMigrationSource{
+		Dir: "./schema",
+	}
+
+	db, err := sql.Open("postgres", psqlInitURL(cfg))
 	if err != nil {
 		logrus.Fatal("error in creating migrations: ", err.Error())
 	}
-	if err := m.Up(); err != nil {
-		if !strings.Contains(err.Error(), "no change") {
-			logrus.Error("Error in migrating ", err.Error())
-		}
+	defer db.Close()
+	migrateState := migrate.Up
+	if !up {
+		migrateState = migrate.Down
 	}
+	n, err := migrate.Exec(db, "postgres", migrations, migrateState)
+	if err != nil {
+		logrus.Fatal("error in creating migrations: ", err.Error())
+	}
+
+	fmt.Printf("Applied %d migrations!\n", n)
+	return nil
 }

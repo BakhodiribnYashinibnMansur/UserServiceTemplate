@@ -19,7 +19,7 @@ func main() {
 	logrus := logrus_log.GetLogger()
 	var cfg = config.Get()
 	// Migations Up
-	repository.MigrateUP(logrus)
+	repository.MigratePsql(cfg, logrus, true)
 
 	db, err := repository.NewPostgres(context.Background(), cfg, logrus)
 
